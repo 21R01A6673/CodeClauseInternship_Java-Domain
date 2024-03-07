@@ -1,0 +1,88 @@
+// Server.java
+import java.io.*;
+import java.net.*;
+import java.util.HashMap;
+import java.util.Map;
+public class Server {
+    private static Map<String, byte[]> fileSystem = new HashMap<>();
+    public static void main(String[] args) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(12345);
+            System.out.println("Server started.");
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                new ClientHandler(clientSocket).start();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    static class ClientHandler extends Thread {
+        private Socket clientSocket;
+        public ClientHandler(Socket socket) {
+            this.clientSocket = socket;
+        }
+        @Override
+        public void run() {
+            try {
+                ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
+                String command = (String) in.readObject();
+                if (command.equals("STORE")) {
+                    String fileName = (String) in.readObject();
+                    byte[] fileContent = (byte[]) in.readObject();
+                    fileSystem.put(fileName, fileContent);
+                    out.writeObject("File stored successfully.");
+                } else if (command.equals("RETRIEVE")) {
+                    String fileName = (String) in.readObject();
+                    byte[] fileContent = fileSystem.get(fileName);
+                    out.writeObject(fileContent);
+                }
+                out.close();
+                in.close();
+                clientSocket.close();
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+// Client.java
+import java.io.*;
+import java.net.*;
+public class Client {
+    public static void main(String[] args) {
+        try {
+            Socket socket = new Socket("localhost", 12345);
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+            out.writeObject("STORE");
+            out.writeObject("example.txt");
+            byte[] fileContent = readFile("example.txt");
+            out.writeObject(fileContent);
+            System.out.println((String) in.readObject());
+            out.writeObject("RETRIEVE");
+            out.writeObject("example.txt");
+            byte[] retrievedFile = (byte[]) in.readObject();
+            writeFile(retrievedFile, "retrieved_example.txt");
+            out.close();
+            in.close();
+            socket.close();
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+    private static byte[] readFile(String fileName) throws IOException {
+        FileInputStream fis = new FileInputStream(fileName);
+        byte[] data = new byte[fis.available()];
+        fis.read(data);
+        fis.close();
+        return data;
+    }
+    private static void writeFile(byte[] data, String fileName) throws IOException {
+        FileOutputStream fos = new FileOutputStream(fileName);
+        fos.write(data);
+        fos.close();
+    }
+}
